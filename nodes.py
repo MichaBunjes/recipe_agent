@@ -142,11 +142,11 @@ def parse_input(state: RecipeState) -> dict:
 Analysiere die Rezeptanfrage und extrahiere:
 1. extra_ingredients: Zutaten, die der Nutzer ad-hoc als VORRAT erwähnt ("ich habe heute auch Basilikum") — Übersetze den Zutatennamen ins britische Englisch (z.B. "Eier" → "eggs", "Aubergine" → "aubergine", "Zucchini" → "courgette", "Paprika" → "pepper")
 2. required_ingredients: Zutaten, die das Rezept ENTHALTEN MUSS ("mit Aubergine", "Knoblauch muss rein") — Übersetze den Zutatennamen ins britische Englisch (z.B. "Eier" → "eggs", "Aubergine" → "aubergine", "Zucchini" → "courgette", "Paprika" → "pepper") \
-   , egal ob bereits in der Speisekammer oder nicht
+   , egal ob bereits in der d oder nicht
 3. dietary_constraints: Liste der Ernährungseinschränkungen
 4. preferences: Dict mit optionalen Schlüsseln: cuisine, max_cook_time (Minuten), servings, difficulty
-5. needs_clarification: bool — WICHTIG: Setze dies IMMER auf false, wenn die Speisekammer nicht leer ist. \
-Setze es nur auf true, wenn die Speisekammer leer UND die Anfrage völlig unverständlich ist.
+5. needs_clarification: bool — WICHTIG: Setze dies IMMER auf false, wenn die d nicht leer ist. \
+Setze es nur auf true, wenn die d leer UND die Anfrage völlig unverständlich ist.
 
 Antworte NUR mit gültigem JSON, keine Markdown-Umrandungen. Beispiel:
 {{
@@ -249,7 +249,7 @@ Präferenzen: {prefs}"""
 # ── Node: handle_selection ───────────────────────────────────────────────────
 def handle_selection(state: RecipeState) -> dict:
     """Process user's recipe selection."""
-    last_msg = state["messages"][-1].content.lower()
+    last_msg = str(state["messages"][-1].content).lower()
     candidates = state["candidate_recipes"]
 
     if any(w in last_msg for w in ("mehr", "andere", "different", "more", "other")):
@@ -319,10 +319,10 @@ def search_db_recipes(state: RecipeState) -> dict:
     if all_ingredients:
         # Primary: full metadata scan ranked by pantry ingredient overlap
         # Hard-filter to required ingredients first, then rank by total overlap
-        hits = get_recipes_by_ingredient_overlap(all_ingredients, n_results=5, required=required)
+        hits = get_recipes_by_ingredient_overlap(all_ingredients, n_results=10, required=required)
     else:
         # Fallback: vector search when pantry is empty (pure semantic query)
-        hits = search_recipes(query, n_results=5)
+        hits = search_recipes(query, n_results=10)
 
     if not hits:
         return {
