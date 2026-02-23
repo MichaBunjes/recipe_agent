@@ -85,8 +85,13 @@ Keine Markdown-Umrandungen.""")
 def pantry_remove_node(state: RecipeState) -> dict:
     """Parse and remove ingredients from persistent pantry."""
 
-    system = SystemMessage(content="""Extrahiere die Zutatennamen, die der Nutzer aus der Speisekammer entfernen möchte.
-Gib NUR ein JSON-Array von Strings zurück: ["Eier", "Butter"]
+    pantry_items = ", ".join(state["pantry_ingredients"]) or "leer"
+
+    system = SystemMessage(content=f"""Die Speisekammer enthält aktuell: {pantry_items}
+
+Identifiziere, welche Zutaten aus der Speisekammer entfernt werden sollen.
+Benutze EXAKT die Schreibweise aus der Speisekammer-Liste oben (auch bei Tippfehlern in der Anfrage).
+Gib NUR ein JSON-Array der exakten Namen zurück, z.B.: ["avocado", "pasta"]
 Keine Markdown-Umrandungen.""")
 
     response = llm.invoke([system, HumanMessage(content=state["raw_input"])])
@@ -140,25 +145,29 @@ def parse_input(state: RecipeState) -> dict:
     system = SystemMessage(content=f"""Du bist ein Kochassistent. Die Speisekammer des Nutzers enthält bereits: {pantry_str}
 {db_hint}
 Analysiere die Rezeptanfrage und extrahiere:
-1. extra_ingredients: Zutaten, die der Nutzer ad-hoc als VORRAT erwähnt ("ich habe heute auch Basilikum") — Übersetze den Zutatennamen ins britische Englisch (z.B. "Eier" → "eggs", "Aubergine" → "aubergine", "Zucchini" → "courgette", "Paprika" → "pepper")
-2. required_ingredients: Zutaten, die das Rezept ENTHALTEN MUSS ("mit Aubergine", "Knoblauch muss rein") — Übersetze den Zutatennamen ins britische Englisch (z.B. "Eier" → "eggs", "Aubergine" → "aubergine", "Zucchini" → "courgette", "Paprika" → "pepper") \
-   , egal ob bereits in der d oder nicht
-3. dietary_constraints: Liste der Ernährungseinschränkungen
+1. extra_ingredients: Liste an Zutaten, die der Nutzer ad-hoc als VORRAT erwähnt ("ich habe heute auch Basilikum") — Übersetze den Zutatennamen ins britische Englisch (z.B. "Eier" → "eggs", "Aubergine" → "aubergine", "Zucchini" → "courgette", "Paprika" → "pepper")
+2. required_ingredients: Liste an Zutaten, die das Rezept ENTHALTEN MUSS ("mit Aubergine", "Knoblauch muss rein") — Übersetze den Zutatennamen ins britische Englisch (z.B. "Eier" → "eggs", "Aubergine" → "aubergine", "Zucchini" → "courgette", "Paprika" → "pepper") \
+   , egal ob bereits in der Speisekammer oder nicht
+3. dietary_constraints: Liste von Ernährungseinschränkungen, Gesundheitszuständen oder Lebensphasen, die die Rezeptwahl beeinflussen (z.B. vegetarisch, vegan, glutenfrei, schwangerschaft, stillzeit, diabetes, nierendiät) — auch aus früherem Gesprächskontext übernehmen
 4. preferences: Dict mit optionalen Schlüsseln: cuisine, max_cook_time (Minuten), servings, difficulty
-5. needs_clarification: bool — WICHTIG: Setze dies IMMER auf false, wenn die d nicht leer ist. \
-Setze es nur auf true, wenn die d leer UND die Anfrage völlig unverständlich ist.
+5. needs_clarification: bool — WICHTIG: Setze dies IMMER auf false, wenn die Speisekammer nicht leer ist. \
+Setze es nur auf true, wenn die Speisekammer leer UND die Anfrage völlig unverständlich ist.
 
 Antworte NUR mit gültigem JSON, keine Markdown-Umrandungen. Beispiel:
 {{
-    "extra_ingredients": ["fresh basil"],
-    "required_ingredients": ["aubergine"],
+    "extra_ingredients": ["fresh basil", "salt"],
+    "required_ingredients": ["aubergine", "garlic"],
     "dietary_constraints": ["vegetarisch"],
     "preferences": {{"cuisine": "italienisch", "servings": 2}},
     "needs_clarification": false,
     "clarification_question": null
 }}""")
 
-    response = llm.invoke([system, HumanMessage(content=state["raw_input"])])
+    # Include conversation history so follow-up messages (e.g. "egal") retain prior context
+    history = list(state.get("messages", []))
+    if not history or getattr(history[-1], "content", None) != state["raw_input"]:
+        history = history + [HumanMessage(content=state["raw_input"])]
+    response = llm.invoke([system] + history)
 
     try:
         parsed = json.loads(str(response.content).strip())
@@ -168,7 +177,9 @@ Antworte NUR mit gültigem JSON, keine Markdown-Umrandungen. Beispiel:
             "messages": [AIMessage(content="Konnte das nicht verarbeiten. Was möchtest du kochen?")],
         }
 
-    needs_clarification = parsed.get("needs_clarification", False) and not is_db
+    # If the pantry has ingredients we can always generate a recipe — no clarification needed
+    has_pantry = bool(state["pantry_ingredients"])
+    needs_clarification = parsed.get("needs_clarification", False) and not is_db and not has_pantry
 
     if is_db:
         messages = []  # search_db_recipes will produce the first message
@@ -249,23 +260,35 @@ Präferenzen: {prefs}"""
 # ── Node: handle_selection ───────────────────────────────────────────────────
 def handle_selection(state: RecipeState) -> dict:
     """Process user's recipe selection."""
-    last_msg = str(state["messages"][-1].content).lower()
+    last_msg_raw = str(state["messages"][-1].content)
+    last_msg = last_msg_raw.lower()
     candidates = state["candidate_recipes"]
 
+    # User wants different suggestions
     if any(w in last_msg for w in ("mehr", "andere", "different", "more", "other")):
-        return {"user_approved": False}
+        return {"user_approved": False, "restart_flow": False}
 
+    # Try to match a recipe by number or name
     selected = []
     for i, recipe in enumerate(candidates):
         if str(i + 1) in last_msg or recipe["name"].lower() in last_msg:
             selected.append(recipe)
 
-    if not selected and candidates:
-        selected = [candidates[0]]
+    if not selected:
+        # Input didn't match any recipe — treat as a new command and restart the flow
+        return {
+            "raw_input": last_msg_raw,
+            "user_approved": False,
+            "restart_flow": True,
+            "iteration_count": 0,
+            "candidate_recipes": [],
+            "selected_recipes": [],
+        }
 
     return {
         "selected_recipes": selected,
         "user_approved": True,
+        "restart_flow": False,
         "messages": [AIMessage(content=f"Gut, ich nehme: {', '.join(r['name'] for r in selected)}")],
     }
 
@@ -328,8 +351,8 @@ def search_db_recipes(state: RecipeState) -> dict:
         return {
             "candidate_recipes": [],
             "messages": [AIMessage(
-                content="Die Rezeptbuch-Datenbank ist leer. "
-                        "Bitte zuerst 'python ingest.py' ausführen."
+                content="Keine Treffer in der Kochbuchdatenbank. "
+                        "Falls noch nicht initalisiert, bitte 'python ingest.py' ausführen."
             )],
         }
 

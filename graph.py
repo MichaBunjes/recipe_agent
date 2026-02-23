@@ -49,6 +49,8 @@ def route_after_recipes(state: RecipeState) -> str:
 
 
 def route_after_selection(state: RecipeState) -> str:
+    if state.get("restart_flow"):
+        return "load_pantry"
     if not state.get("user_approved") and state.get("iteration_count", 0) < 3:
         return "generate_recipes"
     return "generate_grocery_list"
@@ -125,6 +127,7 @@ def build_graph():
         "handle_selection",
         route_after_selection,
         {
+            "load_pantry": "load_pantry",
             "generate_recipes": "generate_recipes",
             "generate_grocery_list": "generate_grocery_list",
         },

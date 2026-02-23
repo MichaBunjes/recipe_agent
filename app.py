@@ -24,6 +24,7 @@ def make_initial_state(user_input: str):
         "needs_clarification": False,
         "user_approved": False,
         "iteration_count": 0,
+        "restart_flow": False,
     }
 
 # --- Page Config ---

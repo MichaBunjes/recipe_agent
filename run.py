@@ -38,6 +38,7 @@ def make_initial_state(user_input: str) -> RecipeState:
         "needs_clarification": False,
         "user_approved": False,
         "iteration_count": 0,
+        "restart_flow": False,
     }
 
 

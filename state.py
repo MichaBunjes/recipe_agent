@@ -32,3 +32,4 @@ class RecipeState(TypedDict):
     needs_clarification: bool
     user_approved: bool
     iteration_count: int
+    restart_flow: bool  # set by handle_selection when input is not a recipe selection
