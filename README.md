@@ -1,141 +1,172 @@
-# Recipe Agent — LangGraph with Persistent Pantry
+# Recipe Agent — ReAct with LangGraph
+
+A conversational recipe assistant built on the **ReAct** (Reason + Act) pattern using LangGraph. The agent reasons about what to do next and picks from a set of tools — no hardwired routing logic.
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    START([START]) --> load_pantry
+    User([User message]) --> Agent
 
-    load_pantry["📦 load_pantry\nreads pantry.json"] --> classify_intent
+    Agent{"🧠 Agent\nLLM reasons,\npicks a tool"}
 
-    classify_intent{"🧠 classify_intent\nLLM intent routing"}
-    classify_intent -->|recipe / recipe_db| parse_input
-    classify_intent -->|pantry_add| pantry_add
-    classify_intent -->|pantry_remove| pantry_remove
-    classify_intent -->|pantry_list| pantry_list
+    Agent -->|pantry op| PantryTools
+    Agent -->|generate recipes| GenRecipes
+    Agent -->|search cookbooks| SearchCB
+    Agent -->|recipe selected| Grocery
+    Agent -->|done| END([END])
 
-    pantry_add["➕ pantry_add\nadd to pantry.json"] --> END([END])
-    pantry_remove["➖ pantry_remove\nremove from pantry.json"] --> END
-    pantry_list["📋 pantry_list\nshow grouped contents"] --> END
+    PantryTools["🗄️ Pantry tools\nadd / remove / list"]
+    GenRecipes["🍳 generate_ai_recipes\n3 AI-generated candidates"]
+    SearchCB["📚 search_cookbook\ningredient-overlap scan\nover all ChromaDB docs"]
+    Grocery["🛒 get_grocery_list\ndiff pantry vs recipe"]
 
-    parse_input["🔍 parse_input\nextract constraints,\nextras & preferences"]
-    parse_input -->|needs_clarification| END
-    parse_input -->|intent = recipe| generate_recipes
-    parse_input -->|intent = recipe_db| search_db_recipes
+    PantryTools --> Agent
+    GenRecipes --> Agent
+    SearchCB --> Agent
+    Grocery --> Agent
 
-    generate_recipes["🍳 generate_recipes\n3 AI-generated candidates"]
-    search_db_recipes["📚 search_db_recipes\nsearch ChromaDB"]
-
-    generate_recipes -->|no candidates| END
-    search_db_recipes -->|no candidates| END
-    generate_recipes -->|has candidates| INTERRUPT
-    search_db_recipes -->|has candidates| INTERRUPT
-
-    INTERRUPT[/"⏸ INTERRUPT\nuser selects recipe"/]
-    INTERRUPT --> handle_selection
-
-    handle_selection{"✋ handle_selection\nprocess user input"}
-    handle_selection -->|"non-recipe input\n(restart_flow)"| load_pantry
-    handle_selection -->|"mehr / iteration < 3"| generate_recipes
-    handle_selection -->|approved| generate_grocery_list
-
-    generate_grocery_list["🛒 generate_grocery_list\ndiff pantry vs needs"] --> format_output
-    format_output["📄 format_output\nfull recipe instructions"] --> END
-
-    style pantry_add fill:#dbeafe,stroke:#3b82f6
-    style pantry_remove fill:#dbeafe,stroke:#3b82f6
-    style pantry_list fill:#dbeafe,stroke:#3b82f6
-    style generate_recipes fill:#dcfce7,stroke:#22c55e
-    style search_db_recipes fill:#dcfce7,stroke:#22c55e
-    style generate_grocery_list fill:#dcfce7,stroke:#22c55e
-    style format_output fill:#dcfce7,stroke:#22c55e
-    style INTERRUPT fill:#fef9c3,stroke:#eab308
-    style load_pantry fill:#f3f4f6,stroke:#6b7280
-    style classify_intent fill:#f3f4f6,stroke:#6b7280
-    style parse_input fill:#f3f4f6,stroke:#6b7280
-    style handle_selection fill:#f3f4f6,stroke:#6b7280
+    style Agent fill:#f3f4f6,stroke:#6b7280
+    style PantryTools fill:#dbeafe,stroke:#3b82f6
+    style GenRecipes fill:#dcfce7,stroke:#22c55e
+    style SearchCB fill:#dcfce7,stroke:#22c55e
+    style Grocery fill:#dcfce7,stroke:#22c55e
 ```
 
-## LangGraph patterns demonstrated
+**One thread per REPL session** — conversation history is preserved across turns via `MemorySaver`. The pantry persists in `pantry.json` independently of graph state.
+
+## ReAct patterns demonstrated
 
 | Pattern | Where |
 |---|---|
-| **Intent-based routing** | `classify_intent` → conditional edges to 5 branches |
-| **Persistent external state** | `pantry.json` loaded/saved outside graph state |
-| **Conditional edges** | `route_by_intent`, `route_after_parse`, `route_after_selection` |
-| **Human-in-the-loop** | `interrupt_before=["handle_selection"]` |
-| **Loop with cap** | `iteration_count < 3` on recipe regeneration |
-| **Mid-flow restart** | `handle_selection` → `load_pantry` when non-recipe input detected |
-| **RAG path** | `search_db_recipes` queries ChromaDB for cookbook recipes |
-| **Checkpointing** | `MemorySaver` for state across interrupts |
+| **ReAct loop** | `create_react_agent` — LLM reasons + picks tool each turn |
+| **No routing logic** | LLM decides which tool to call based on user intent |
+| **Typed tool parameters** | `list[str]`, `list[dict]`, `Optional[...]` — no JSON string workarounds |
+| **Persistent external state** | `pantry.json` read/written directly by tools, outside graph state |
+| **Session memory** | `MemorySaver` + single `thread_id` per REPL session |
+| **Ingredient-overlap search** | Full collection scan in ChromaDB, ranked by pantry match count |
+| **Observability** | LangSmith + Langfuse tracing via callbacks |
+
+## Tools
+
+| Tool | Description |
+|---|---|
+| `get_pantry` | Load pantry as flat list |
+| `list_pantry_by_category` | Show pantry grouped by category |
+| `add_to_pantry` | Add ingredients (typed list of dicts) |
+| `remove_from_pantry` | Remove ingredients by exact name |
+| `generate_ai_recipes` | Generate 3 recipes from pantry + constraints |
+| `search_cookbook` | Full ingredient-overlap scan over ChromaDB cookbook collection |
+| `get_grocery_list` | Diff pantry against a recipe's required ingredients |
 
 ## File structure
 
 ```
 recipe_agent/
-├── state.py          # TypedDict state schema
-├── pantry.py         # Pantry CRUD — reads/writes pantry.json
-├── nodes.py          # All node functions (LLM calls + pantry ops)
-├── graph.py          # Graph wiring, edges, interrupt config
+├── tools.py          # All @tool functions
+├── graph.py          # create_react_agent + system prompt
 ├── run.py            # Interactive REPL
-├── requirements.txt
-└── pantry.json       # Auto-created on first add (gitignore this)
+├── pantry.py         # Pantry CRUD — reads/writes pantry.json
+├── rag.py            # ChromaDB client + ingredient-overlap search
+├── ingest.py         # Ingest recipe PDFs into ChromaDB
+├── pantry.json       # Auto-created on first add (gitignore this)
+└── recipe_books/     # PDF recipe books for ingest
 ```
 
 ## Setup
 
 ```bash
-pip install -r requirements.txt
-export OPENAI_API_KEY=sk-...
-python run.py
+uv sync
+cp .env.example .env  # add your API keys
+uv run python run.py
+```
+
+**.env keys:**
+```
+OPENAI_API_KEY=sk-...
+
+# Optional — LangSmith tracing
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_API_KEY=ls__...
+LANGCHAIN_PROJECT=recipe-agent
+
+# Optional — Langfuse tracing
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_HOST=https://cloud.langfuse.com
+```
+
+## Ingest recipe books
+
+Drop PDF files into `recipe_books/` and run:
+
+```bash
+uv run python ingest.py
 ```
 
 ## Example session
 
 ```
-You> add chicken breast, rice, broccoli, soy sauce, garlic, eggs, onion, olive oil
-🤖 Added to pantry: chicken breast, rice, broccoli, soy sauce, garlic, eggs, onion, olive oil. You now have 8 items.
+You> füge Hähnchen, Reis, Brokkoli, Sojasoße, Knoblauch hinzu
+🤖 Zur Speisekammer hinzugefügt: chicken, rice, broccoli, soy sauce, garlic. Du hast jetzt 5 Artikel.
 
-You> show pantry
-🤖 Your pantry:
-   Protein: chicken breast (some)
-   Vegetable: broccoli (some), garlic (some), onion (some)
+You> zeige Speisekammer
+🤖 Deine Speisekammer:
+   Protein: chicken (some)
+   Vegetable: broccoli (some), garlic (some)
    Grain: rice (some)
-   Condiment: soy sauce (some), olive oil (some)
-   Dairy: eggs (some)
+   Condiment: soy sauce (some)
 
-You> quick asian dinner for 2
-🤖 Using your pantry (8 items). Generating recipes...
-🤖 Here are your options:
-   1. Chicken Fried Rice — ...
-   2. Garlic Chicken Stir-Fry — ...
-   3. Egg Drop Soup with Rice — ...
+You> koch mir was Asiatisches für 2
+🤖 Hier sind deine Optionen:
+   1. Chicken Fried Rice — gebratener Reis mit Hähnchen und Gemüse (25 Min., einfach)
+   2. Knoblauch-Hähnchen Stir-Fry — schnelles Wok-Gericht (20 Min., einfach)
+   3. Hähnchen-Reissuppe — wärmende Suppe mit Knoblauch (30 Min., einfach)
 
 You> 1
-🤖 Going with: Chicken Fried Rice
-🤖 You have everything you need — no shopping required.
-🤖 ## Chicken Fried Rice ...
+🤖 Du hast alles — kein Einkaufen nötig.
+🤖 ## Chicken Fried Rice
+   ...
+
+You> suche Rezepte in meinen Büchern mit Kichererbsen
+🤖 Hier sind die passendsten Rezepte aus deinen Kochbüchern:
+   1. Confit tandoori chickpeas — ottolenghi_simple.pdf
+   2. Gigli with chickpeas and za'atar — ottolenghi_simple.pdf
+   ...
+
+You> 2
+🤖 Einkaufsliste für Gigli with chickpeas and za'atar:
+   - anchovy fillets
+   - lemon
+   ...
 ```
+
+## Verbose mode
+
+```bash
+uv run python run.py --verbose
+```
+
+Shows each tool call and its arguments as the agent reasons through the request.
 
 ## Swapping LLMs
 
-In `nodes.py`, change the `llm` line:
+In [tools.py](tools.py) and [graph.py](graph.py), change the `llm` line:
 
 ```python
-# Anthropic
+# Anthropic Claude
 from langchain_anthropic import ChatAnthropic
-llm = ChatAnthropic(model="claude-sonnet-4-20250514")
+llm = ChatAnthropic(model="claude-sonnet-4-6")
 
 # Ollama (local, free)
 from langchain_ollama import ChatOllama
 llm = ChatOllama(model="llama3.1")
 ```
 
-## Key design decision: pantry outside graph state
+## Key design decisions
 
-The pantry lives in a JSON file, not in LangGraph's checkpointer. Why:
-- Pantry persists across all sessions (graph threads are per-conversation)
-- Simple to manually edit, backup, or sync
-- Graph state stays focused on the current request
+**Pantry outside graph state** — the pantry lives in `pantry.json`, not in LangGraph's checkpointer. Tools read/write it directly. This means pantry data persists across all sessions, is easy to manually edit, and the graph state stays clean (just messages).
 
-If you later want multi-user support or more complex querying, swap `pantry.py` for SQLite — the interface stays the same.
+**search_cookbook uses ingredient-overlap, not vector search** — `get_recipes_by_ingredient_overlap` scans every document in the ChromaDB collection and ranks by how many pantry items appear in each recipe's ingredient list. This guarantees no recipe is missed. Vector search is only used as a fallback when the pantry is empty.
+
+**Single thread per session** — unlike the previous DAG version (new thread per message), the ReAct agent uses one `thread_id` per REPL session. This lets the LLM carry context across turns (e.g., dietary preferences mentioned earlier are remembered).

@@ -1,156 +1,60 @@
-"""LangGraph definition for the recipe agent with persistent pantry."""
+"""ReAct agent graph for the recipe agent."""
 
-from langgraph.graph import StateGraph, START, END
+from dotenv import load_dotenv
+from langchain.agents import create_agent
 from langgraph.checkpoint.memory import MemorySaver
+from langchain_openai import ChatOpenAI
 
-from state import RecipeState
-from nodes import (
-    load_pantry_node,
-    classify_intent,
-    pantry_add_node,
-    pantry_remove_node,
-    pantry_list_node,
-    parse_input,
-    generate_recipes,
-    search_db_recipes,
-    handle_selection,
-    generate_grocery_list,
-    format_output,
-)
+load_dotenv()
 
+from tools import all_tools
 
-# ── Routing functions ────────────────────────────────────────────────────────
+SYSTEM_PROMPT = """Du bist ein persönlicher Kochassistent mit persistenter Speisekammer.
+Du hilfst dem Nutzer, seine Speisekammer zu verwalten und passende Rezepte zu finden oder zu generieren.
+Antworte immer auf Deutsch (außer der Nutzer schreibt auf Englisch).
 
-def route_by_intent(state: RecipeState) -> str:
-    """Route to the correct subgraph based on classified intent."""
-    intent = state.get("intent", "recipe")
-    return {
-        "recipe":         "parse_input",
-        "recipe_db":      "parse_input",
-        "pantry_add":     "pantry_add",
-        "pantry_remove":  "pantry_remove",
-        "pantry_list":    "pantry_list",
-    }.get(intent, "parse_input")
+## Verfügbare Tools
+- get_pantry / list_pantry_by_category: Zeige den Inhalt der Speisekammer
+- add_to_pantry: Füge Zutaten hinzu (als strukturierte Liste)
+- remove_from_pantry: Entferne Zutaten (IMMER zuerst get_pantry() aufrufen um exakte Namen zu kennen)
+- generate_ai_recipes: Generiere 3 neue Rezeptvorschläge per KI
+- search_cookbook: Durchsuche die Rezeptbuch-Datenbank nach passenden Rezepten (Zutaten-Overlap)
+- get_grocery_list: Erstelle Einkaufsliste für ein gewähltes Rezept
 
+## Workflow für Rezeptanfragen
+1. Rufe get_pantry() auf, um zu sehen, was verfügbar ist
+2. Rufe generate_ai_recipes() ODER search_cookbook() auf (je nach Anfrage)
+3. Zeige dem Nutzer die Optionen als nummerierte Liste — dann WARTE auf seine Antwort (keine weiteren Tools aufrufen)
+4. Wenn der Nutzer eine Nummer nennt: rufe get_grocery_list() auf und zeige das vollständige Rezept
+5. Wenn der Nutzer "mehr" oder "andere" sagt: neue Rezepte generieren
 
-def route_after_parse(state: RecipeState) -> str:
-    if state.get("intent") == "recipe_db":
-        return "search_db_recipes"  # never block DB search on vague input
-    if state.get("needs_clarification"):
-        return END
-    return "generate_recipes"
+## Workflow für Speisekammer-Entfernung
+1. Rufe IMMER zuerst get_pantry() auf, um die exakte Schreibweise der Zutatennamen zu sehen
+2. Dann rufe remove_from_pantry() mit den exakten Namen aus der Speisekammer auf
 
+## Wichtige Regeln
+- Niemals direkt ein Rezept ausgeben ohne die nummerierte Liste zuerst zu zeigen und auf Nutzerwahl zu warten
+- Bei "mehr" oder "andere Vorschläge": generate_ai_recipes() oder search_cookbook() erneut aufrufen
+- Zutaten immer auf britisches Englisch übersetzen (Ei → egg, Aubergine → aubergine, Zucchini → courgette)
+- Ernährungseinschränkungen aus dem Gesprächsverlauf merken und weitergeben
+"""
 
-def route_after_recipes(state: RecipeState) -> str:
-    """Skip handle_selection if there are no candidates to choose from."""
-    if not state.get("candidate_recipes"):
-        return END
-    return "handle_selection"
-
-
-def route_after_selection(state: RecipeState) -> str:
-    if state.get("restart_flow"):
-        return "load_pantry"
-    if not state.get("user_approved") and state.get("iteration_count", 0) < 3:
-        return "generate_recipes"
-    return "generate_grocery_list"
-
-
-# ── Build the graph ──────────────────────────────────────────────────────────
 
 def build_graph():
-    builder = StateGraph(RecipeState)
-
-    # ── Nodes ──
-    builder.add_node("load_pantry", load_pantry_node)
-    builder.add_node("classify_intent", classify_intent)
-
-    # Pantry management nodes
-    builder.add_node("pantry_add", pantry_add_node)
-    builder.add_node("pantry_remove", pantry_remove_node)
-    builder.add_node("pantry_list", pantry_list_node)
-
-    # Recipe flow nodes
-    builder.add_node("parse_input", parse_input)
-    builder.add_node("generate_recipes", generate_recipes)
-    builder.add_node("search_db_recipes", search_db_recipes)
-    builder.add_node("handle_selection", handle_selection)
-    builder.add_node("generate_grocery_list", generate_grocery_list)
-    builder.add_node("format_output", format_output)
-
-    # ── Edges ──
-
-    # Always start: load pantry → classify intent
-    builder.add_edge(START, "load_pantry")
-    builder.add_edge("load_pantry", "classify_intent")
-
-    # Branch based on intent
-    builder.add_conditional_edges(
-        "classify_intent",
-        route_by_intent,
-        {
-            "parse_input": "parse_input",
-            "pantry_add": "pantry_add",
-            "pantry_remove": "pantry_remove",
-            "pantry_list": "pantry_list",
-        },
-    )
-
-    # Pantry management → END (single-turn operations)
-    builder.add_edge("pantry_add", END)
-    builder.add_edge("pantry_remove", END)
-    builder.add_edge("pantry_list", END)
-
-    # Recipe flow
-    builder.add_conditional_edges(
-        "parse_input",
-        route_after_parse,
-        {
-            END:                 END,
-            "generate_recipes":  "generate_recipes",
-            "search_db_recipes": "search_db_recipes",
-        },
-    )
-
-    builder.add_conditional_edges(
-        "generate_recipes",
-        route_after_recipes,
-        {END: END, "handle_selection": "handle_selection"},
-    )
-    builder.add_conditional_edges(
-        "search_db_recipes",
-        route_after_recipes,
-        {END: END, "handle_selection": "handle_selection"},
-    )
-
-    builder.add_conditional_edges(
-        "handle_selection",
-        route_after_selection,
-        {
-            "load_pantry": "load_pantry",
-            "generate_recipes": "generate_recipes",
-            "generate_grocery_list": "generate_grocery_list",
-        },
-    )
-
-    builder.add_edge("generate_grocery_list", "format_output")
-    builder.add_edge("format_output", END)
-
-    # Compile with checkpointer + interrupt for recipe selection
+    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
     memory = MemorySaver()
-    graph = builder.compile(
+    return create_agent(
+        llm,
+        tools=all_tools,
+        system_prompt=SYSTEM_PROMPT,
         checkpointer=memory,
-        interrupt_before=["handle_selection"],
     )
 
-    return graph
-
-
-# ── Visualize ────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     graph = build_graph()
+    print("Graph built successfully.")
     try:
         print(graph.get_graph().draw_mermaid())
     except Exception:
-        print("Graph built successfully.")
+        pass
