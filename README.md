@@ -8,7 +8,7 @@ A conversational recipe assistant built on the **ReAct** (Reason + Act) pattern 
 flowchart TD
     User([User message]) --> Agent
 
-    Agent{"🧠 Agent\nLLM reasons,\npicks a tool"}
+    Agent{"🧠 Agent LLM reasons, picks a tool"}
 
     Agent -->|pantry op| PantryTools
     Agent -->|generate recipes| GenRecipes
@@ -16,10 +16,10 @@ flowchart TD
     Agent -->|recipe selected| Grocery
     Agent -->|done| END([END])
 
-    PantryTools["🗄️ Pantry tools\nadd / remove / list"]
-    GenRecipes["🍳 generate_ai_recipes\n3 AI-generated candidates"]
-    SearchCB["📚 search_cookbook\ningredient-overlap scan\nover all ChromaDB docs"]
-    Grocery["🛒 get_grocery_list\ndiff pantry vs recipe"]
+    PantryTools["🗄️ Pantry tools add / remove / list"]
+    GenRecipes["🍳 generate_ai_recipes 3 AI-generated candidates"]
+    SearchCB["📚 search_cookbook ingredient-overlap scan over all ChromaDB docs"]
+    Grocery["🛒 get_grocery_list diff pantry vs recipe"]
 
     PantryTools --> Agent
     GenRecipes --> Agent
