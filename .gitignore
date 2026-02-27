@@ -21,4 +21,4 @@ chroma_db/
 pantry.json
 
 # Mac
-.DS_Store
+*.DS_Store
