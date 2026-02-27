@@ -141,6 +141,11 @@ You> 2
    ...
 ```
 
+## Start Streamlit App
+```bash
+streamlit run app.py
+```
+
 ## Verbose mode
 
 ```bash
