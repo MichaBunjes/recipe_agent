@@ -7,7 +7,7 @@ from langchain_openai import ChatOpenAI
 
 load_dotenv()
 
-from tools import all_tools
+from agent_files.tools import all_tools
 
 SYSTEM_PROMPT = """Du bist ein persönlicher Kochassistent mit persistenter Speisekammer.
 Du hilfst dem Nutzer, seine Speisekammer zu verwalten und passende Rezepte zu finden oder zu generieren.

@@ -4,7 +4,7 @@ from pathlib import Path
 import chromadb
 from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
 
-CHROMA_DIR = Path(__file__).parent / "chroma_db"
+CHROMA_DIR = Path(__file__).parent.parent / "chroma_db"
 COLLECTION_NAME = "recipe_books"
 
 _client = None

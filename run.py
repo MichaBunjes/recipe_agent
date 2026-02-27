@@ -18,7 +18,7 @@ load_dotenv()  # must be first — loads LANGSMITH_* / LANGFUSE_* vars before La
 
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
-from graph import build_graph
+from agent_files.graph import build_graph
 
 try:
     from langfuse.langchain import CallbackHandler as LangfuseCallback

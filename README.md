@@ -39,13 +39,12 @@ flowchart TD
 
 | Pattern | Where |
 |---|---|
-| **ReAct loop** | `create_react_agent` — LLM reasons + picks tool each turn |
+| **ReAct loop** | `create_agent` — LLM reasons + picks tool each turn |
 | **No routing logic** | LLM decides which tool to call based on user intent |
-| **Typed tool parameters** | `list[str]`, `list[dict]`, `Optional[...]` — no JSON string workarounds |
 | **Persistent external state** | `pantry.json` read/written directly by tools, outside graph state |
 | **Session memory** | `MemorySaver` + single `thread_id` per REPL session |
 | **Ingredient-overlap search** | Full collection scan in ChromaDB, ranked by pantry match count |
-| **Observability** | LangSmith + Langfuse tracing via callbacks |
+| **Observability** | Langfuse tracing via callbacks |
 
 ## Tools
 
@@ -63,14 +62,17 @@ flowchart TD
 
 ```
 recipe_agent/
-├── tools.py          # All @tool functions
-├── graph.py          # create_react_agent + system prompt
-├── run.py            # Interactive REPL
-├── pantry.py         # Pantry CRUD — reads/writes pantry.json
-├── rag.py            # ChromaDB client + ingredient-overlap search
+├── 
+├── app.py            # Streamlit app
 ├── ingest.py         # Ingest recipe PDFs into ChromaDB
-├── pantry.json       # Auto-created on first add (gitignore this)
-└── recipe_books/     # PDF recipe books for ingest
+├── run.py            # Interactive REPL
+├── recipe_agent/
+|   ├── graph.py      # create_agent + system prompt
+|   ├── tools.py      # All @tool functions
+|   ├── pantry.json   # Auto-created on first add (gitignore this)
+|   ├── pantry.py     # Pantry CRUD — reads/writes pantry.json
+|   └── db_client.py  # ChromaDB client + ingredient-overlap search
+└── recipe_books/     # PDF or json recipe books for ingest
 ```
 
 ## Setup
@@ -98,7 +100,7 @@ LANGFUSE_HOST=https://cloud.langfuse.com
 
 ## Ingest recipe books
 
-Drop PDF files into `recipe_books/` and run:
+Drop PDF or json files into `recipe_books/` and run:
 
 ```bash
 uv run python ingest.py

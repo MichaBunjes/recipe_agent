@@ -9,7 +9,7 @@ from langchain_openai import ChatOpenAI
 
 load_dotenv()
 
-from pantry import (
+from agent_files.pantry import (
     load_pantry,
     save_pantry,
     add_ingredients,
@@ -17,7 +17,7 @@ from pantry import (
     list_ingredients,
     list_by_category,
 )
-from db_client import search_recipes, get_recipes_by_ingredient_overlap
+from agent_files.db_client import search_recipes, get_recipes_by_ingredient_overlap
 
 _llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
 
