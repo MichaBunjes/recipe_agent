@@ -17,7 +17,7 @@ from pantry import (
     list_ingredients,
     list_by_category,
 )
-from rag import search_recipes, get_recipes_by_ingredient_overlap
+from db_client import search_recipes, get_recipes_by_ingredient_overlap
 
 _llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
 

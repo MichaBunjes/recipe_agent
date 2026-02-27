@@ -12,7 +12,7 @@ import json
 import hashlib
 from pathlib import Path
 from pypdf import PdfReader
-from rag import get_collection_for_ingest, COLLECTION_NAME, DefaultEmbeddingFunction
+from db_client import get_collection_for_ingest, COLLECTION_NAME, DefaultEmbeddingFunction
 
 RECIPE_BOOKS_DIR = Path(__file__).parent / "recipe_books"
 
@@ -118,7 +118,7 @@ def main():
 
     if "--reset" in args:
         args = [a for a in args if a != "--reset"]
-        from rag import _client
+        from db_client import _client
         _client.delete_collection(COLLECTION_NAME)
         collection = _client.create_collection(
             name=COLLECTION_NAME,

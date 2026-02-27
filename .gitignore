@@ -15,9 +15,9 @@ wheels/
 # Claude Settings
 .claude
 
-# Recipe agent data
+# Large data files
 chroma_db/
-recipe_books/
+*.pdf
 pantry.json
 
 # Mac

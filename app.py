@@ -1,4 +1,6 @@
 import uuid
+import os
+import signal
 import streamlit as st
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
@@ -30,6 +32,9 @@ def make_initial_state(user_input: str):
 # --- Page Config ---
 st.set_page_config(page_title="Rezept-Agent", page_icon="🍳")
 st.title("🍳 Rezept-Agent mit Speisekammer")
+if st.button("Server stoppen"):
+    st.write("Server wird beendet...")
+    os.kill(os.getpid(), signal.SIGINT)
 st.markdown("Verwalte deine Speisekammer und generiere Rezepte!")
 
 # --- Session State Initialization ---
