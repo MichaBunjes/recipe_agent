@@ -1,0 +1,84 @@
+{
+  "metadata": {
+    "source": "Ottolenghi SIMPLE",
+    "authors": [
+      "Yotam Ottolenghi"
+    ],
+    "total_recipes": 1,
+    "schema_version": "1.0",
+    "optimized_for": "chromadb_ingredient_search",
+    "fields": {
+      "id": "Unique slug identifier",
+      "title": "Recipe title",
+      "description": "Introductory text",
+      "serves": "Serving size",
+      "chapter": "Book chapter",
+      "sub_chapter": "Sub-section if applicable",
+      "ingredients_raw": "Full ingredient lines as written",
+      "ingredients_by_section": "Ingredients grouped by component",
+      "ingredient_names": "Cleaned names for embedding/search",
+      "instructions": "Ordered cooking steps",
+      "search_text": "Pre-built text for ChromaDB embedding"
+    }
+  },
+  "recipes": [
+    {
+      "id": "braised_eggs_with_leek_and_za_atar",
+      "title": "Braised eggs with leek and za’atar",
+      "description": "This is a quick way to get a very comforting meal on the table in a wonderfully short amount of time. It’s a dish as happily eaten for brunch, with coffee, as it is for a light supper with some crusty white bread and a glass of wine. The leeks and spinach can be made up to 1 day ahead and kept in the fridge, ready for the eggs to be cracked in and braised.",
+      "serves": "Serves six",
+      "serving_context": "",
+      "ingredients_raw": [
+        "2 tbsp unsalted butter",
+        "2 tbsp olive oil",
+        "2 extra-large leeks (or 4 smaller), trimmed and cut into ¼-inch/½ cm slices (6 cups/530g)",
+        "salt and black pepper",
+        "1 tsp cumin seeds, toasted and lightly crushed",
+        "½ small preserved lemon, seeds discarded, skin and flesh finely chopped (2½ tbsp)",
+        "1¼ cups/300ml vegetable stock",
+        "7 oz/200g baby spinach leaves",
+        "6 large eggs",
+        "3¼ oz/90g feta, broken into ¾-inch/2cm pieces",
+        "1 tbsp za’atar"
+      ],
+      "ingredients_by_section": {
+        "Main": [
+          "2 tbsp unsalted butter",
+          "2 tbsp olive oil",
+          "2 extra-large leeks (or 4 smaller), trimmed and cut into ¼-inch/½ cm slices (6 cups/530g)",
+          "salt and black pepper",
+          "1 tsp cumin seeds, toasted and lightly crushed",
+          "½ small preserved lemon, seeds discarded, skin and esh nely chopped (2½ tbsp)",
+          "1¼ cups/300ml vegetable stock",
+          "7 oz/200g baby spinach leaves",
+          "6 large eggs",
+          "3¼ oz/90g feta, broken into ¾-inch/2cm pieces",
+          "1 tbsp za’atar"
+        ]
+      },
+      "ingredient_names": [
+        "cumin seeds",
+        "extra-large leeks",
+        "large eggs",
+        "olive oil",
+        "baby spinach leaves",
+        "feta",
+        "salt and black pepper",
+        "small preserved lemon",
+        "unsalted butter",
+        "vegetable stock",
+        "za’atar"
+      ],
+      "instructions": [
+        "Put the butter and 1 tbsp of the oil into a large sauté pan with a lid and place over medium-high heat. Once the butter starts to foam, add the leeks, ½ tsp of salt, and plenty of pepper. Fry for 3 minutes, stirring frequently, until the leeks are soft. Add the cumin, lemon, and vegetable stock and boil rapidly for 4–5 minutes, until most of the stock has evaporated. Fold in the spinach and cook for 1 minute, until wilted, then decrease the heat to medium.",
+        "Use a large spoon to make 6 indentations in the mixture and break 1 egg into each space. Sprinkle the eggs with a pinch of salt, dot the feta around the eggs, then cover the pan. Simmer for 4–5 minutes, until the egg whites are cooked but the yolks are still runny.",
+        "Mix the za’atar with the remaining 1 tbsp of oil and brush over the eggs. Serve at once, straight from the pan."
+      ],
+      "num_steps": 3,
+      "num_ingredients": 11,
+      "chapter": "Brunch",
+      "sub_chapter": "",
+      "search_text": "Braised eggs with leek and za’atar. Ingredients: cumin seeds, toasted and lightly crushed, extra-large leeks, large eggs, olive oil, oz/ baby spinach leaves, oz/ feta, salt and black pepper, small preserved lemon, unsalted butter, vegetable stock, za’atar. This is a quick way to get a very comforting meal on the table in a wonderfully short amount of time. It’s a dish as happily eaten for brunch, with coffee, as it is for a light supper with some crusty"
+    }
+  ]
+}
