@@ -15,8 +15,9 @@ wheels/
 # Claude Settings
 .claude
 
-# Large data files
+# data files
 chroma_db/
+*.json
 *.pdf
 pantry.json
 
